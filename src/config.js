@@ -3,7 +3,7 @@ const config = {
     token: process.env.DISCORD_TOKEN
   },
   server: {
-    allowedId: process.env.ALLOWED_SERVER_ID || '1452886738497310720',
+    allowedId: process.env.ALLOWED_SERVER_ID || '1452886736874111009',
     lurkerChannel: process.env.LURKER_CHANNEL_ID || '1452886738497310824'
   },
   groq: {
