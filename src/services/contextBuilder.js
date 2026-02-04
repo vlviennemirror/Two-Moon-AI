@@ -1,23 +1,21 @@
 import config from '../config.js';
 import cache from '../database/cache.js';
-import db from '../database/connection.js';
 
-export async function buildContext(message) {
+export async function build(message) {
   const context = {
     replyChain: [],
     channelHistory: [],
     targetMessage: null
   };
-  
+
   if (message.reference?.messageId) {
     context.replyChain = await traceReplyChain(message, config.context.replyChainDepth);
     if (context.replyChain.length > 0) {
       context.targetMessage = context.replyChain[0];
     }
   }
-  
-  context.channelHistory = await getChannelHistory(message.channel, message.id);
-  
+
+  context.channelHistory = await getHistory(message.channel, message.id);
   return context;
 }
 
@@ -25,7 +23,7 @@ async function traceReplyChain(message, maxDepth) {
   const chain = [];
   let current = message;
   let depth = 0;
-  
+
   while (current.reference?.messageId && depth < maxDepth) {
     try {
       const parent = await current.channel.messages.fetch(current.reference.messageId);
@@ -39,27 +37,24 @@ async function traceReplyChain(message, maxDepth) {
       });
       current = parent;
       depth++;
-    } catch {
+    } catch (error) {
       break;
     }
   }
-  
+
   return chain;
 }
 
-async function getChannelHistory(channel, excludeMessageId) {
-  const cacheKey = channel.id;
-  const cached = cache.getContextCache(cacheKey);
-  
-  if (cached && cached.length > 0) {
-    const freshEnough = Date.now() - cached[0].timestamp < 60000;
-    if (freshEnough) return cached.filter(m => m.id !== excludeMessageId);
+async function getHistory(channel, excludeId) {
+  const cached = cache.getContext(channel.id);
+  if (cached?.length > 0 && Date.now() - cached[0].timestamp < 60000) {
+    return cached.filter(m => m.id !== excludeId);
   }
-  
+
   try {
     const messages = await channel.messages.fetch({ limit: config.context.historyLimit });
     const history = Array.from(messages.values())
-      .filter(m => m.id !== excludeMessageId)
+      .filter(m => m.id !== excludeId)
       .map(m => ({
         id: m.id,
         author: m.author.username,
@@ -69,62 +64,60 @@ async function getChannelHistory(channel, excludeMessageId) {
         timestamp: m.createdTimestamp
       }))
       .reverse();
-    
-    cache.setContextCache(cacheKey, history);
-    await saveHistoryToDb(channel.id, history);
-    
+
+    cache.setContext(channel.id, history);
     return history;
-  } catch {
+  } catch (error) {
+    console.error('[Context] History fetch error:', error.message);
     return [];
   }
 }
 
-async function saveHistoryToDb(channelId, messages) {
-  const recentMessages = messages.slice(-10);
-  
-  for (const msg of recentMessages) {
-    try {
-      await db.query(
-        `INSERT INTO conversation_cache (channel_id, message_id, user_id, content, is_bot, created_at)
-         VALUES ($1, $2, $3, $4, $5, to_timestamp($6/1000.0))
-         ON CONFLICT (message_id) DO NOTHING`,
-        [channelId, msg.id, msg.authorId, msg.content, msg.isBot, msg.timestamp]
-      );
-    } catch { }
-  }
-}
+export function format(context, message, memories = []) {
+  let out = '';
 
-export function formatContextForPrompt(context, currentMessage) {
-  let formatted = '';
-  
+  if (memories.length > 0) {
+    out += '[MEMORIES]\n';
+    memories.forEach(m => {
+      out += `- ${m.substring(0, 100)}\n`;
+    });
+    out += '\n';
+  }
+
   if (context.replyChain.length > 0) {
-    formatted += '[REPLY CONTEXT]\n';
+    out += '[REPLY CONTEXT]\n';
     const reversed = [...context.replyChain].reverse();
-    for (const msg of reversed) {
-      const role = msg.isBot ? 'Assistant' : msg.author;
-      formatted += `${role}: ${truncate(msg.content, 300)}\n`;
-    }
-    formatted += '\n';
+    reversed.forEach(m => {
+      const role = m.isBot ? 'Bot' : m.author;
+      out += `${role}: ${m.content.substring(0, 200)}\n`;
+    });
+    out += '\n';
   }
-  
+
   if (context.channelHistory.length > 0) {
-    formatted += '[RECENT CHAT]\n';
-    const recent = context.channelHistory.slice(-10);
-    for (const msg of recent) {
-      const role = msg.isBot ? 'Assistant' : msg.author;
-      formatted += `${role}: ${truncate(msg.content, 200)}\n`;
-    }
-    formatted += '\n';
+    out += '[RECENT CHAT]\n';
+    const recent = context.channelHistory.slice(-8);
+    recent.forEach(m => {
+      const role = m.isBot ? 'Bot' : m.author;
+      out += `${role}: ${m.content.substring(0, 150)}\n`;
+    });
+    out += '\n';
   }
-  
-  formatted += `[CURRENT MESSAGE]\n${currentMessage.author.username}: ${currentMessage.content}`;
-  
-  return formatted;
+
+  out += `[CURRENT]\n${message.author.username}: ${message.content}`;
+  return out;
 }
 
-function truncate(text, maxLen) {
-  if (text.length <= maxLen) return text;
-  return text.substring(0, maxLen - 3) + '...';
+export function getActiveUsers(context) {
+  const users = new Map();
+  if (context.channelHistory) {
+    context.channelHistory.forEach(m => {
+      if (!m.isBot) {
+        users.set(m.authorId, m.author);
+      }
+    });
+  }
+  return users;
 }
 
-export default { buildContext, formatContextForPrompt };
+export default { build, format, getActiveUsers };

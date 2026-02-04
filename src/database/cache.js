@@ -17,58 +17,39 @@ const rateLimitCache = new LRUCache({
   ttl: config.rateLimit.windowSeconds * 1000
 });
 
-export function getContextCache(channelId) {
+export function getContext(channelId) {
   return contextCache.get(channelId);
 }
 
-export function setContextCache(channelId, messages) {
+export function setContext(channelId, messages) {
   contextCache.set(channelId, messages);
 }
 
-export function getUserCache(userId) {
+export function getUser(userId) {
   return userCache.get(userId);
 }
 
-export function setUserCache(userId, data) {
+export function setUser(userId, data) {
   userCache.set(userId, data);
 }
 
-export function getRateLimit(userId) {
-  return rateLimitCache.get(userId) || { count: 0, start: Date.now() };
-}
-
-export function setRateLimit(userId, data) {
-  rateLimitCache.set(userId, data);
-}
-
 export function checkRateLimit(userId) {
-  const limit = getRateLimit(userId);
+  const limit = rateLimitCache.get(userId) || { count: 0, start: Date.now() };
   const now = Date.now();
   const windowMs = config.rateLimit.windowSeconds * 1000;
-  
+
   if (now - limit.start > windowMs) {
-    setRateLimit(userId, { count: 1, start: now });
+    rateLimitCache.set(userId, { count: 1, start: now });
     return { allowed: true, remaining: config.rateLimit.maxRequests - 1 };
   }
-  
+
   if (limit.count >= config.rateLimit.maxRequests) {
     const resetIn = Math.ceil((limit.start + windowMs - now) / 1000);
     return { allowed: false, resetIn };
   }
-  
-  setRateLimit(userId, { count: limit.count + 1, start: limit.start });
+
+  rateLimitCache.set(userId, { count: limit.count + 1, start: limit.start });
   return { allowed: true, remaining: config.rateLimit.maxRequests - limit.count - 1 };
 }
 
-export function clearAllCaches() {
-  contextCache.clear();
-  userCache.clear();
-  rateLimitCache.clear();
-}
-
-export default {
-  getContextCache, setContextCache,
-  getUserCache, setUserCache,
-  getRateLimit, setRateLimit, checkRateLimit,
-  clearAllCaches
-};
+export default { getContext, setContext, getUser, setUser, checkRateLimit };

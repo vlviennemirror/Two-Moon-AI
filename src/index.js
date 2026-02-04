@@ -15,45 +15,63 @@ const client = new Client({
 });
 
 client.once('ready', async () => {
+  console.log(`[Bot] Logged in as ${client.user.tag}`);
+  console.log(`[Bot] Allowed server: ${config.server.allowedId}`);
+
   await db.initDatabase();
-  await registerCommands();
-  scheduleCleanup();
+
+  try {
+    const rest = new REST().setToken(config.discord.token);
+    await rest.put(
+      Routes.applicationGuildCommands(client.user.id, config.server.allowedId),
+      { body: slashCommands.getJSON() }
+    );
+    console.log('[Bot] Slash commands registered');
+  } catch (error) {
+    console.error('[Bot] Failed to register slash commands:', error.message);
+  }
+
+  setInterval(async () => {
+    try {
+      await db.cleanup(7);
+    } catch (error) {
+      console.error('[Bot] Cleanup error:', error.message);
+    }
+  }, 6 * 60 * 60 * 1000);
 });
 
 client.on('messageCreate', async (message) => {
-  await messageHandler.handleMessage(message, client);
+  try {
+    await messageHandler.handle(message, client);
+  } catch (error) {
+    console.error('[Bot] Message handler error:', error.message);
+  }
 });
 
 client.on('interactionCreate', async (interaction) => {
   if (!interaction.isChatInputCommand()) return;
+
+  if (interaction.guildId !== config.server.allowedId) {
+    await interaction.reply({ content: 'Server not allowed', ephemeral: true });
+    return;
+  }
+
   try {
-    await slashCommands.handleSlashCommand(interaction);
+    await slashCommands.handle(interaction);
   } catch (error) {
-    const content = { content: 'Something went wrong', ephemeral: true };
-    if (interaction.replied || interaction.deferred) {
-      await interaction.followUp(content);
-    } else {
-      await interaction.reply(content);
+    console.error('[Bot] Interaction error:', error.message);
+    if (!interaction.replied && !interaction.deferred) {
+      await interaction.reply({ content: 'Error', ephemeral: true });
     }
   }
 });
 
-async function registerCommands() {
-  const rest = new REST().setToken(config.discord.token);
-  try {
-    await rest.put(
-      Routes.applicationCommands(client.user.id),
-      { body: slashCommands.getCommandsJSON() }
-    );
-  } catch (error) {}
-}
+client.on('error', (error) => {
+  console.error('[Bot] Client error:', error.message);
+});
 
-function scheduleCleanup() {
-  setInterval(async () => {
-    try {
-      await db.cleanupOldData(7);
-    } catch {}
-  }, 6 * 60 * 60 * 1000);
-}
+process.on('unhandledRejection', (error) => {
+  console.error('[Bot] Unhandled rejection:', error);
+});
 
 client.login(config.discord.token);
