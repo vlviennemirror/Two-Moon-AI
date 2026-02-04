@@ -1,5 +1,5 @@
-import db from './connection.js';
-import cache from './cache.js';
+import db from '../../discord-ai-bot/src/database/connection.js';
+import cache from '../../discord-ai-bot/src/database/cache.js';
 
 const PRESETS = {
   twomoon: { tone: 'balanced', humor: 'dry', energy: 'calm', length: 'concise' },

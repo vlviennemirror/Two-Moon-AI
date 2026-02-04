@@ -39,6 +39,31 @@ export async function initDatabase() {
       ON conversation_cache(channel_id, created_at DESC)
     `);
     await client.query(`
+      CREATE TABLE IF NOT EXISTS server_persona (
+        server_id TEXT PRIMARY KEY,
+        preset TEXT DEFAULT 'twomoon',
+        custom_tone TEXT,
+        custom_humor TEXT,
+        custom_energy TEXT,
+        custom_length TEXT,
+        quirk_intensity TEXT DEFAULT 'medium',
+        updated_at TIMESTAMPTZ DEFAULT NOW()
+      )
+    `);
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS user_persona (
+        user_id TEXT PRIMARY KEY,
+        preset TEXT DEFAULT NULL,
+        custom_tone TEXT,
+        custom_humor TEXT,
+        custom_energy TEXT,
+        custom_length TEXT,
+        quirk_intensity TEXT,
+        style_sample TEXT,
+        updated_at TIMESTAMPTZ DEFAULT NOW()
+      )
+    `);
+    await client.query(`
       CREATE TABLE IF NOT EXISTS rate_limits (
         user_id TEXT PRIMARY KEY,
         request_count INT DEFAULT 0,
@@ -55,9 +80,7 @@ export async function query(text, params) {
 }
 
 export async function cleanupOldData(daysOld = 7) {
-  await query(
-    `DELETE FROM conversation_cache WHERE created_at < NOW() - INTERVAL '${daysOld} days'`
-  );
+  await query(`DELETE FROM conversation_cache WHERE created_at < NOW() - INTERVAL '${daysOld} days'`);
 }
 
 export default { initDatabase, query, cleanupOldData };
