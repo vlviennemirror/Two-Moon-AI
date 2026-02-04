@@ -4,10 +4,10 @@ const TYPO_CHARS = {
 };
 
 const SKIP_PATTERNS = [
-  /^(ok|okay|k|kk|oke|oki|okok|hmm|hm|mhm)$/i,
-  /^(yes|no|ya|yep|nope|nah|yoi|iya|yup)$/i,
-  /^(lol|lmao|haha|wkwk|wkwkwk|😂|💀|🔥|👍|👎|xd)$/i,
-  /^(nice|cool|bet|aight|damn|dope|sick|based)$/i,
+  /^(ok|okay|k|kk|oki|okok|hmm|hm|alr|alright)$/i,
+  /^(yes|no|yea|yep|nope|nah|ye|yeh)$/i,
+  /^(lol|lmao|haha|rofl|😂|💀|🔥|👍|👎|😭)$/i,
+  /^(nice|cool|bet|aight|damn|dope|sick|fr|ong|based)$/i,
   /^.{1,4}$/,
   /^<a?:\w+:\d+>$/
 ];

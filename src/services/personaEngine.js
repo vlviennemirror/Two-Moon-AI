@@ -82,10 +82,10 @@ export function analyzeUserStyle(messages) {
 
   let style = 'User style: ';
 
-  if (/wkwk|haha|lol|lmao|😂|💀/.test(lower)) style += 'likes joking, ';
-  if (/gw|gue|lu|lo|anjir|bangsat/.test(lower)) style += 'uses indo slang, ';
+  if (/lol|lmao|haha|rotfl|😂|💀|😭/.test(lower)) style += 'uses laughs/emojis, ';
+  if (/u|ur|idk|rn|fr|tbh|bruh|cuz/.test(lower)) style += 'uses slang, ';
   if (combined.length / messages.length < 20) style += 'short messages, ';
-  if (combined.length / messages.length > 60) style += 'longer messages, ';
+  if (combined.length / messages.length > 60) style += 'long messages, ';
   if (/[A-Z]{3,}/.test(combined)) style += 'uses caps, ';
   if (/!{2,}/.test(combined)) style += 'expressive, ';
 
